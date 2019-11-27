@@ -176,18 +176,38 @@ class AmazonCloudDriver implements CloudDriver {
     protected String getsessionToken() { sessionToken }
 
     /**
-     * Retrieve the current IAM role eventually define for a EC2 instance.
-     * See http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#instance-metadata-security-credentials
+     * @return If nextflow is running in ECS or another environmet (e.g., EC2)
+     */
+    protected boolean inEcs() { System.getenv().containsKey('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI') }
+
+    /**
+     * @return 
+     *      URL for fetching IAM role. See https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html
+     *      and https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html#instance-metadata-security-credentials
+     */
+    protected String getSecurityCredentialsUrl() {
+        if( inEcs() ) {
+            log.info "Running in ECS"
+            return "http://169.254.170.2" + System.getenv('AWS_CONTAINER_CREDENTIALS_RELATIVE_URI')
+        } else {
+            log.info "Not running in ECS"
+            return "http://169.254.169.254/latest/meta-data/iam/security-credentials/'"
+        }
+    }
+
+    /**
+     * Retrieve the current IAM role eventually define for a EC2 instance or an ECS task.
      *
      * @return
      *      The IAM role name associated to this instance or {@code null} if no role is defined or
-     *      it's not a EC2 instance
+     *      it's not a EC2 instance or ECS task.
      */
     protected String fetchIamRole() {
         try {
-            def role = getUrl('http://169.254.169.254/latest/meta-data/iam/security-credentials/').readLines()
+            def url = getSecurityCredentialsUrl()
+            def role = getUrl(url).readLines()
             if( role.size() != 1 )
-                throw new IllegalArgumentException("Not a valid EC2 IAM role")
+                throw new IllegalArgumentException("Not a valid EC2 or ECS IAM role")
             return role.get(0)
         }
         catch( IOException e ) {

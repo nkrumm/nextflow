@@ -16,7 +16,7 @@
 version ?= none
 
 build: dist/docker 
-	cp ../nextflow .
+	cp ../build/releases/nextflow-19.10.0-edge-all nextflow
 	docker build -t nextflow/nextflow:${version} .
 
 dist/docker:
